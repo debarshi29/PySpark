@@ -1,0 +1,245 @@
+The Code: Streaming with Join and Filter
+python
+
+Collapse
+
+Wrap
+
+Copy
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+
+# Create Spark session
+spark = SparkSession.builder \
+    .appName("Streaming Event Join and Filter") \
+    .getOrCreate()
+
+# Define schemas
+event_schema = "event_id STRING, participant_id STRING, event_type STRING, timestamp STRING"
+participant_schema = "participant_id STRING, name STRING, category STRING"
+
+# Read streaming data from events
+events_stream = spark.readStream \
+    .schema(event_schema) \
+    .csv("input/events/")
+
+# Read static participant data
+participants_static = spark.read \
+    .schema(participant_schema) \
+    .csv("input/participants/participants.csv")
+
+# Filter events for specific types (e.g., learning-related)
+learning_events = ["Workshop", "Seminar"]
+filtered_stream = events_stream.filter(col("event_type").isin(learning_events))
+
+# Join filtered stream with participants
+joined_stream = filtered_stream.join(participants_static, "participant_id", "left_outer")
+
+# Write the result to console
+query = joined_stream.writeStream \
+    .outputMode("append") \
+    .format("console") \
+    .option("truncate", "false") \
+    .start()
+
+# Wait for termination
+query.awaitTermination()
+
+# Stop the Spark session
+spark.stop()
+Important Parts Explained
+1. Imports
+python
+
+Collapse
+
+Wrap
+
+Copy
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col
+What: Imports the SparkSession class and the col function from PySpark.
+Why:
+SparkSession: The entry point for all Spark operations, including streaming. It manages the Spark application and resources.
+col: A utility function to reference DataFrame columns in a way that supports operations like filtering. It’s needed for the filter step.
+How It Works: These are foundational imports. Without SparkSession, you can’t run Spark, and col simplifies column-based logic.
+2. Creating the Spark Session
+python
+
+Collapse
+
+Wrap
+
+Copy
+spark = SparkSession.builder \
+    .appName("Streaming Event Join and Filter") \
+    .getOrCreate()
+What: Initializes a Spark session with a specific application name.
+Why:
+It’s the control center for your Spark job, coordinating tasks across a cluster (or locally in this case).
+The appName helps identify this job in logs or the Spark UI, useful for debugging or monitoring.
+How It Works:
+builder: A factory for creating a SparkSession.
+.appName(...): Sets a human-readable name.
+.getOrCreate(): Creates a new session or reuses an existing one, ensuring only one session runs at a time in this context.
+3. Defining Schemas
+python
+
+Collapse
+
+Wrap
+
+Copy
+event_schema = "event_id STRING, participant_id STRING, event_type STRING, timestamp STRING"
+participant_schema = "participant_id STRING, name STRING, category STRING"
+What: Specifies the structure (column names and types) of the input CSV files.
+Why:
+Structured Streaming requires an explicit schema for streaming sources like CSV to interpret data correctly and efficiently.
+Without this, Spark would infer the schema on every micro-batch, which is slower and error-prone (e.g., mistaking a string timestamp for an integer).
+How It Works:
+Each schema is a string where each part (e.g., event_id STRING) defines a column name and its data type.
+For simplicity, all columns are STRING, though timestamp could be a TIMESTAMP type with parsing.
+4. Reading Streaming Data
+python
+
+Collapse
+
+Wrap
+
+Copy
+events_stream = spark.readStream \
+    .schema(event_schema) \
+    .csv("input/events/")
+What: Creates a streaming DataFrame that reads new data from the input/events/ directory.
+Why:
+This is the core of streaming—continuously processing new events as they’re added to the directory.
+Simulates a real-time data feed (e.g., event registrations).
+How It Works:
+readStream: Marks this as a streaming source, unlike read for batch data.
+.schema(event_schema): Applies the predefined schema to incoming CSV data.
+.csv("input/events/"): Monitors the directory for new files or appended rows. Spark processes each addition as a micro-batch.
+5. Reading Static Data
+python
+
+Collapse
+
+Wrap
+
+Copy
+participants_static = spark.read \
+    .schema(participant_schema) \
+    .csv("input/participants/participants.csv")
+What: Loads participants.csv as a static (non-streaming) DataFrame.
+Why:
+Provides reference data to enrich the streaming events (e.g., adding participant names).
+Assumes participant data doesn’t change frequently, so it’s loaded once.
+How It Works:
+read: Batch mode for a one-time load.
+.schema(participant_schema): Applies the schema.
+.csv(...): Reads the specific file (not a directory, since it’s static).
+6. Filtering the Stream
+python
+
+Collapse
+
+Wrap
+
+Copy
+learning_events = ["Workshop", "Seminar"]
+filtered_stream = events_stream.filter(col("event_type").isin(learning_events))
+What: Filters the streaming events to keep only those with event_type as "Workshop" or "Seminar".
+Why:
+Focuses the analysis on specific event types (e.g., educational events), a common requirement in streaming analytics.
+Reduces data volume for downstream processing.
+How It Works:
+learning_events: A Python list of allowed event types.
+col("event_type"): References the event_type column as a Column object.
+.isin(learning_events): Creates a boolean condition (true if event_type is in the list).
+filter: Applies this condition, producing a new streaming DataFrame with only matching rows.
+7. Joining Streaming and Static Data
+python
+
+Collapse
+
+Wrap
+
+Copy
+joined_stream = filtered_stream.join(participants_static, "participant_id", "left_outer")
+What: Joins the filtered streaming events with static participant data on participant_id.
+Why:
+Enriches events with participant details (e.g., name, category), making the data more useful.
+Demonstrates a hybrid streaming-static operation.
+How It Works:
+filtered_stream.join: Joins the streaming DataFrame.
+participants_static: The static DataFrame to join with.
+"participant_id": The key column for matching (must exist in both DataFrames).
+"left_outer": Keeps all rows from the streaming side (left) and adds matching participant data (or null if no match). This ensures no events are lost.
+8. Writing the Stream
+python
+
+Collapse
+
+Wrap
+
+Copy
+query = joined_stream.writeStream \
+    .outputMode("append") \
+    .format("console") \
+    .option("truncate", "false") \
+    .start()
+What: Outputs the joined streaming data to the console as new records arrive.
+Why:
+Provides real-time visibility into processed events, simulating a monitoring dashboard.
+Easy to test without needing a persistent sink.
+How It Works:
+writeStream: Sets up a streaming sink.
+.outputMode("append"): Outputs only new rows in each micro-batch (ideal for event logging; complete or update would be for aggregations).
+.format("console"): Sends output to the terminal (could be file, memory, etc.).
+.option("truncate", "false"): Prevents long values (e.g., timestamps) from being cut off in the display.
+.start(): Launches the query and returns a StreamingQuery object to manage it.
+9. Awaiting Termination
+python
+
+Collapse
+
+Wrap
+
+Copy
+query.awaitTermination()
+What: Keeps the program running until manually stopped (e.g., Ctrl+C).
+Why:
+Streaming is continuous—without this, the script would exit immediately after starting the query.
+How It Works:
+Blocks the main thread, allowing Spark to process new data indefinitely.
+The query object lets you interact with the running stream (e.g., stop it programmatically if needed).
+10. Stopping the Spark Session
+python
+
+Collapse
+
+Wrap
+
+Copy
+spark.stop()
+What: Shuts down the Spark session and cleans up resources.
+Why:
+Ensures proper termination, freeing memory and stopping background processes.
+Prevents resource leaks, especially in local mode.
+How It Works:
+Closes the Spark context and stops all active queries.
+Why These Parts Are Important
+Spark Session: Without it, nothing runs—it’s the backbone of Spark.
+Schemas: Critical for streaming to ensure consistent data interpretation.
+Streaming Read: Enables real-time processing, the core of this use case.
+Static Read: Provides context, making the stream more meaningful.
+Filter: Adds business logic, tailoring the output to specific needs.
+Join: Combines data sources, a key feature of streaming analytics.
+Write Stream: Delivers results, completing the pipeline.
+Await Termination: Keeps the stream alive, essential for continuous operation.
+Cleanup: Maintains system health.
+How It Ties Together
+Flow: Data streams from events.csv → filtered for "Workshop" or "Seminar" → joined with participants.csv → output to console.
+Example: If you append E006,P105,Workshop,2025-03-06 12:05:00:
+Passes filter (Workshop is in learning_events).
+Joins with P105 (Sophia, Student).
+Prints: P105 | E006 | Workshop | 2025-03-06 12:05:00 | Sophia | Student.

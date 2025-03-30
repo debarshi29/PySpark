@@ -1,0 +1,6 @@
+event_id,participant_id,event_type,timestamp
+E001,P101,Workshop,2025-03-06 12:00:00
+E002,P102,Sale,2025-03-06 12:01:00
+E003,P103,Booking,2025-03-06 12:02:00
+E004,P101,Workshop,2025-03-06 12:03:00
+E005,P104,Sale,2025-03-06 12:04:00

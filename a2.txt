@@ -1,0 +1,62 @@
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, split
+
+# Create Spark session
+spark = SparkSession.builder \
+    .appName("Streaming Dual Socket Join and Filter") \
+    .getOrCreate()
+
+# Read streaming events from port 9999
+events_stream = spark.readStream \
+    .format("socket") \
+    .option("host", "localhost") \
+    .option("port", 9999) \
+    .load() \
+    .select(
+        split(col("value"), ",").getItem(0).alias("event_id"),
+        split(col("value"), ",").getItem(1).alias("participant_id"),
+        split(col("value"), ",").getItem(2).alias("event_type"),
+        split(col("value"), ",").getItem(3).alias("timestamp").cast("timestamp").alias("event_timestamp")
+    ) \
+    .withWatermark("event_timestamp", "10 minutes")
+
+# Read streaming participants from port 9998
+participants_stream = spark.readStream \
+    .format("socket") \
+    .option("host", "localhost") \
+    .option("port", 9998) \
+    .load() \
+    .select(
+        split(col("value"), ",").getItem(0).alias("participant_id"),
+        split(col("value"), ",").getItem(1).alias("name"),
+        split(col("value"), ",").getItem(2).alias("category"),
+        split(col("value"), ",").getItem(3).alias("participant_timestamp").cast("timestamp")
+    ) \
+    .withWatermark("participant_timestamp", "10 minutes")
+
+# Filter events for specific types (e.g., learning-related)
+learning_events = ["Workshop", "Seminar"]
+filtered_events_stream = events_stream.filter(col("event_type").isin(learning_events))
+
+# Join the two streaming DataFrames
+# Use a time-based condition to limit state growth
+joined_stream = filtered_events_stream.join(
+    participants_stream,
+    (filtered_events_stream.participant_id == participants_stream.participant_id) & 
+    (filtered_events_stream.event_timestamp >= participants_stream.participant_timestamp),
+    "left_outer"
+)
+
+# Write the result to console
+query = joined_stream.writeStream \
+    .outputMode("append") \
+    .format("console") \
+    .option("truncate", "false") \
+    .trigger(processingTime="10 seconds") \
+    .start()
+
+# Wait for termination
+query.awaitTermination()
+
+# Stop the Spark session
+spark.stop()
