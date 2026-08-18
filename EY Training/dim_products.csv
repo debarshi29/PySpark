@@ -1,0 +1,56 @@
+ProductID,ProductName,Category,SubCategory,UnitCost,ListPrice
+P1001,Laptop Model 1,Electronics,Laptops,42172.0,64745.45
+P1002,Laptop Model 2,Electronics,Laptops,45252.96,77078.88
+P1003,Laptop Model 3,Electronics,Laptops,17428.06,32837.16
+P1004,Laptop Model 4,Electronics,Laptops,41705.49,73440.94
+P1005,Laptop Model 5,Electronics,Laptops,18663.34,28792.88
+P1006,Phone Model 1,Electronics,Phones,27497.05,50935.46
+P1007,Phone Model 2,Electronics,Phones,37436.69,66816.82
+P1008,Phone Model 3,Electronics,Phones,30140.28,42127.23
+P1009,Phone Model 4,Electronics,Phones,34186.89,44151.73
+P1010,Phone Model 5,Electronics,Phones,44125.77,73274.45
+P1011,Audio Model 1,Electronics,Audio,41594.39,61578.08
+P1012,Audio Model 2,Electronics,Audio,49333.41,90306.22
+P1013,Audio Model 3,Electronics,Audio,42333.16,58272.24
+P1014,Audio Model 4,Electronics,Audio,30988.64,39618.12
+P1015,Audio Model 5,Electronics,Audio,19616.14,33229.38
+P1016,Chair Model 1,Furniture,Chairs,13213.72,24827.01
+P1017,Chair Model 2,Furniture,Chairs,8312.16,12391.76
+P1018,Chair Model 3,Furniture,Chairs,9993.8,13723.05
+P1019,Chair Model 4,Furniture,Chairs,6020.08,9386.56
+P1020,Chair Model 5,Furniture,Chairs,7154.84,12058.62
+P1021,Desk Model 1,Furniture,Desks,9614.68,17222.21
+P1022,Desk Model 2,Furniture,Desks,12693.1,18443.56
+P1023,Desk Model 3,Furniture,Desks,14237.44,25244.36
+P1024,Desk Model 4,Furniture,Desks,9033.5,12984.87
+P1025,Desk Model 5,Furniture,Desks,12485.2,16740.64
+P1026,Storage Model 1,Furniture,Storage,6838.93,8581.39
+P1027,Storage Model 2,Furniture,Storage,13707.02,23057.31
+P1028,Storage Model 3,Furniture,Storage,12750.43,22408.55
+P1029,Storage Model 4,Furniture,Storage,9869.31,15985.14
+P1030,Storage Model 5,Furniture,Storage,6135.62,8126.29
+P1031,Paper Model 1,Office Supplies,Paper,547.57,852.14
+P1032,Paper Model 2,Office Supplies,Paper,493.92,863.0
+P1033,Paper Model 3,Office Supplies,Paper,530.05,853.29
+P1034,Paper Model 4,Office Supplies,Paper,490.79,710.45
+P1035,Paper Model 5,Office Supplies,Paper,216.03,331.36
+P1036,Binder Model 1,Office Supplies,Binders,311.58,472.21
+P1037,Binder Model 2,Office Supplies,Binders,643.77,902.6
+P1038,Binder Model 3,Office Supplies,Binders,230.32,330.03
+P1039,Binder Model 4,Office Supplies,Binders,352.67,592.57
+P1040,Binder Model 5,Office Supplies,Binders,489.66,861.57
+P1041,Writing Model 1,Office Supplies,Writing,545.44,825.88
+P1042,Writing Model 2,Office Supplies,Writing,623.29,846.76
+P1043,Writing Model 3,Office Supplies,Writing,211.81,277.16
+P1044,Writing Model 4,Office Supplies,Writing,575.63,892.35
+P1045,Writing Model 5,Office Supplies,Writing,283.86,447.27
+P1046,Kitchen Model 1,Appliances,Kitchen,8376.07,14261.17
+P1047,Kitchen Model 2,Appliances,Kitchen,12960.04,19409.78
+P1048,Kitchen Model 3,Appliances,Kitchen,10703.59,17764.57
+P1049,Kitchen Model 4,Appliances,Kitchen,11644.28,15218.75
+P1050,Kitchen Model 5,Appliances,Kitchen,7840.89,14703.5
+P1051,Cleaning Model 1,Appliances,Cleaning,20173.86,34392.59
+P1052,Cleaning Model 2,Appliances,Cleaning,10147.57,19077.07
+P1053,Cleaning Model 3,Appliances,Cleaning,18148.51,31142.46
+P1054,Cleaning Model 4,Appliances,Cleaning,13010.04,18564.77
+P1055,Cleaning Model 5,Appliances,Cleaning,7503.7,13781.98
