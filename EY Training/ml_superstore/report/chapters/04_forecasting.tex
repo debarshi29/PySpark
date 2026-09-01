@@ -1,0 +1,331 @@
+\chapter{Forecasting Monthly Sales}
+\label{ch:forecasting}
+
+This is the most theory-heavy chapter of the report: forecasting a short
+(48-point) monthly series correctly requires care about stationarity,
+model identification, and — critically — an evaluation protocol that
+respects time order, none of which arise in the i.i.d.\ supervised setting
+of \cref{ch:models}.
+
+\section{Theory}
+
+\subsection{Stationarity}
+\begin{definition}[Weak stationarity]
+A process $\{y_t\}$ is \emph{weakly (covariance) stationary} if
+$\mathbb{E}[y_t] = \mu$ is constant in $t$, $\mathrm{Var}(y_t)=\sigma^2$
+is constant in $t$, and $\mathrm{Cov}(y_t, y_{t+h})$ depends on the lag
+$h$ but not on $t$ itself.
+\end{definition}
+Classical linear time-series models (AR, MA, ARMA) are defined for
+stationary processes; a series with a trend or a growing seasonal
+amplitude violates the definition and must be transformed — typically by
+\emph{differencing} — before such a model applies. The backshift (lag)
+operator $B$, $By_t = y_{t-1}$, lets a $d$-th order difference be written
+compactly as $\Delta^d y_t = (1-B)^d y_t$; a \emph{seasonal} difference of
+period $s$ is $\Delta_s y_t = (1-B^s) y_t = y_t - y_{t-s}$.
+
+\subsection{The augmented Dickey--Fuller test}
+The ADF test formalises "does this series need differencing" as a
+hypothesis test on the regression
+\begin{equation}
+  \Delta y_t = \alpha + \beta t + \gamma y_{t-1}
+             + \sum_{i=1}^{k}\delta_i \Delta y_{t-i} + \varepsilon_t,
+  \label{eq:adf}
+\end{equation}
+with null hypothesis $H_0: \gamma = 0$ (a unit root — the series is a
+random walk, non-stationary) against $H_1: \gamma < 0$ (stationary). The
+test statistic is the ordinary $t$-statistic for $\hat\gamma$, but its
+null distribution is \emph{not} the usual Student-$t$ (it is skewed left
+by the non-standard behaviour of a random walk's sample variance), so
+Dickey and Fuller's own tabulated critical values (or the software's
+$p$-value approximation) must be used rather than a normal-theory table.
+
+\subsection{Autocorrelation and the Box--Jenkins identification}
+The autocorrelation function $\rho(h) = \mathrm{Corr}(y_t, y_{t+h})$ and
+partial autocorrelation function $\phi_{hh}$ (the correlation between
+$y_t$ and $y_{t+h}$ after regressing out $y_{t+1},\dots,y_{t+h-1}$) are
+the classical diagnostic pair for identifying ARMA order: an AR($p$)
+process has a PACF that cuts off after lag $p$ and an ACF that decays
+geometrically, while an MA($q$) process has the mirror-image behaviour.
+In practice for a short, strongly seasonal series like ours, ACF/PACF are
+used qualitatively (\cref{fig:fc-acf-pacf}) to corroborate, not to
+mechanically dictate, the model order.
+
+\subsection{Exponential smoothing (Holt--Winters)}
+Simple exponential smoothing forecasts the next value as a
+geometrically-weighted average of the past, $\hat y_{t+1} = \alpha y_t +
+(1-\alpha)\hat y_t$. \textbf{Holt--Winters} extends this with a trend
+state $b_t$ and a seasonal state $s_t$ (period $L=12$). The additive
+form used here is
+\begin{align}
+  \ell_t &= \alpha (y_t - s_{t-L}) + (1-\alpha)(\ell_{t-1}+b_{t-1}), \label{eq:hw-level}\\
+  b_t &= \beta (\ell_t - \ell_{t-1}) + (1-\beta) b_{t-1}, \label{eq:hw-trend}\\
+  s_t &= \gamma (y_t - \ell_t) + (1-\gamma) s_{t-L}, \label{eq:hw-season}\\
+  \hat y_{t+h} &= \ell_t + h\,b_t + s_{t-L+((h-1)\bmod L)+1}, \label{eq:hw-forecast}
+\end{align}
+with smoothing parameters $\alpha,\beta,\gamma \in [0,1]$ chosen (by the
+fitting routine) to minimise the in-sample sum of squared one-step
+forecast errors. Level $\ell_t$ tracks the de-seasonalised local mean,
+$b_t$ the local trend, and $s_t$ a smoothly-updating length-$L$ seasonal
+profile; the $h$-step forecast \cref{eq:hw-forecast} linearly extrapolates
+the trend and re-applies the appropriate seasonal index. This additive
+form is appropriate when the seasonal swing has roughly constant absolute
+size rather than growing proportionally with the level (a multiplicative
+alternative replaces the $+s$ terms with $\times s$ terms), consistent
+with \cref{fig:stl} where the seasonal amplitude does not visibly balloon
+with the trend.
+
+\subsection{SARIMA}
+A seasonal ARIMA model, $\mathrm{SARIMA}(p,d,q)(P,D,Q)_s$, generalises
+ARMA by combining non-seasonal and seasonal autoregressive/moving-average
+polynomials applied to a series differenced both regularly ($d$ times)
+and seasonally ($D$ times, period $s$):
+\begin{equation}
+  \phi_p(B)\,\Phi_P(B^s)\, (1-B)^d (1-B^s)^D y_t
+    = \theta_q(B)\,\Theta_Q(B^s)\,\varepsilon_t,
+  \label{eq:sarima}
+\end{equation}
+where $\phi_p(B) = 1-\phi_1 B - \cdots - \phi_p B^p$ (and analogously
+$\Phi_P$, $\theta_q$, $\Theta_Q$ for the seasonal AR, non-seasonal MA and
+seasonal MA polynomials respectively) and $\varepsilon_t$ is white noise.
+We fit $\mathrm{SARIMA}(1,1,1)(1,1,0,12)$: one non-seasonal AR and MA
+term, one seasonal AR term, one regular and one seasonal (period-12)
+difference, and no seasonal MA term — a compact specification chosen to
+be identifiable on 48 points while still capturing both the trend
+($d=1$) and the year-over-year seasonal shape ($D=1$, period 12) directly,
+rather than relying on Holt--Winters' exponential-smoothing-style
+seasonal update. Coefficients are estimated by (quasi-)maximum likelihood
+via the Kalman filter (as implemented in \texttt{statsmodels}'s
+state-space \texttt{SARIMAX}), which also yields exact prediction
+variances and hence analytic confidence intervals for the forecast.
+
+\subsection{Forecast accuracy metrics}
+For actuals $y_1,\dots,y_h$ and forecasts $\hat y_1,\dots,\hat y_h$ over a
+horizon of length $h$:
+\begin{align}
+  \mathrm{MAE} &= \frac1h\sum_{i=1}^h |y_i - \hat y_i|, &
+  \mathrm{RMSE} &= \sqrt{\frac1h\sum_{i=1}^h (y_i-\hat y_i)^2}, \\
+  \mathrm{MAPE} &= \frac{100\%}{h}\sum_{i=1}^h \left|\frac{y_i-\hat y_i}{y_i}\right|. &&
+\end{align}
+MAE is in the original (dollar) units and treats all errors linearly;
+RMSE is also in dollars but penalises large errors quadratically, so it
+is more sensitive to occasional big misses (e.g. an under-forecast
+December); MAPE is scale-free and hence comparable across series of
+different magnitude (used here to compare the whole-store series against
+per-category series of very different size), at the cost of being
+undefined/unstable when $y_i$ is near zero and of asymmetrically
+penalising over- vs.\ under-forecasts.
+
+\subsection{Rolling-origin (walk-forward) backtesting}
+A single train/test split, as used for the i.i.d.\ models of
+\cref{ch:models}, is a poor evaluation protocol for a 48-point time
+series: it tests the model at exactly one forecast origin, so its score
+has high variance and cannot be trusted to represent typical future
+performance. \textbf{Rolling-origin} (a.k.a.\ walk-forward, or expanding-
+window) backtesting instead repeats the fit/forecast cycle at multiple
+origins $o_1 < o_2 < \dots < o_K$: at each $o_k$, the model is trained
+only on $y_1,\dots,y_{o_k}$ and scored against the next $h$ true values
+$y_{o_k+1},\dots,y_{o_k+h}$, and the reported metric is the average
+across the $K$ folds. This never trains on the future relative to any
+fold's own test window and is the time-series analogue of $K$-fold
+cross-validation, with the essential difference that folds must respect
+temporal order rather than being drawn at random.
+
+\subsection{Residual whiteness: the Ljung--Box test}
+A well-specified model should leave residuals $\hat\varepsilon_t$ that
+are approximately white noise (no remaining autocorrelation to exploit).
+The Ljung--Box statistic
+\begin{equation}
+  Q_{LB} = n(n+2)\sum_{k=1}^{K}\frac{\hat\rho_k^2}{n-k}
+  \label{eq:ljungbox}
+\end{equation}
+(with $\hat\rho_k$ the residual sample autocorrelation at lag $k$)
+is asymptotically $\chi^2_K$ under the null of no autocorrelation up to
+lag $K$; a large $p$-value (failure to reject) is the desired outcome,
+indicating the model has not left exploitable structure behind.
+
+\section{Method}
+The monthly series $y_t = \sum_{\text{lines in month } t} \text{Sales}$
+(\texttt{src.features.monthly\_sales}) has $T=48$ points, 2014-01 through
+2017-12. We hold out the last 12 months as a single test window, fit
+four forecasters on the code interface \texttt{fit(train)} /
+\texttt{predict(h)} (\texttt{src/forecasting.py}) — a seasonal-naive
+baseline, additive Holt--Winters, $\mathrm{SARIMA}(1,1,1)(1,1,0,12)$, and
+a recursive random-forest regressor on lag/rolling-mean/seasonal features
+(\texttt{LagRegressor}) — and separately run an 8-fold rolling-origin
+backtest (\texttt{min\_train}=24, horizon=3, step=3). The winning point
+forecaster is then refit on the full 48 months and projected 12 months
+ahead; SARIMA additionally supplies an 80\% analytic confidence band via
+its Kalman-filter forecast variance.
+
+\section{Results}
+
+\subsection{Series and stationarity}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{04_series.png}
+  \caption{Monthly sales, 2014--2017. Clear multi-year growth and a
+  recurring within-year cycle.}
+  \label{fig:fc-series}
+\end{figure}
+Table~\ref{tab:adf} reports the ADF test (\cref{eq:adf}) on the level
+series, its first difference, and its seasonal (lag-12) difference.
+\begin{table}[H]
+  \centering
+  \caption{ADF unit-root test, $H_0$: series has a unit root.}
+  \label{tab:adf}
+  \begin{tabular}{@{}lrr@{}}
+    \toprule
+    Series & Test statistic & $p$-value \\
+    \midrule
+    Level $y_t$                  & $-4.494$ & 0.0002 \\
+    First difference $\Delta y_t$ & $-9.058$ & $<$0.0001 \\
+    Seasonal difference $\Delta_{12} y_t$ & $-1.482$ & 0.5425 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+The level series already rejects a pure unit root, and first-differencing
+rejects it far more decisively — but the \emph{seasonal-only} difference
+does \textbf{not} (p = 0.54): removing only the year-over-year level
+shift is not enough to leave a stationary residual, because the
+within-year \emph{shape} of the cycle (not just its level) still carries
+structure. This is exactly the case for using a model with an explicit,
+separately-estimated seasonal component — Holt--Winters' $s_t$ state, or
+SARIMA's combined regular-\emph{and}-seasonal differencing
+(\cref{eq:sarima}, $d{=}1,D{=}1$) — rather than relying on a single
+seasonal difference alone.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{04_acf_pacf.png}
+  \caption{ACF (left) and PACF (right) of $\Delta y_t$. A significant
+  spike near lag 12 in both is consistent with the seasonal structure
+  seen directly in \cref{fig:fc-series,fig:stl}.}
+  \label{fig:fc-acf-pacf}
+\end{figure}
+
+\subsection{Hold-out comparison}
+\begin{table}[H]
+  \centering
+  \caption{12-month hold-out accuracy (train on months 1--36, test on 37--48).}
+  \label{tab:holdout}
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Model & MAE (\$) & RMSE (\$) & MAPE \\
+    \midrule
+    \textbf{Holt--Winters} & \textbf{11{,}456} & 12{,}544 & \textbf{22.6\%} \\
+    SARIMA(1,1,1)(1,1,0,12) & 13{,}411 & 15{,}989 & 26.7\% \\
+    Lag-regressor (RF)      & 13{,}484 & 16{,}791 & 24.1\% \\
+    Seasonal-naive baseline & 15{,}468 & 18{,}986 & 24.5\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{04_holdout_forecasts.png}
+  \caption{12-month hold-out: all four models' forecasts against the
+  realised sales path.}
+  \label{fig:fc-holdout}
+\end{figure}
+All three fitted models beat the seasonal-naive baseline on MAE and RMSE;
+Holt--Winters is the clear winner on this single split.
+
+\subsection{Rolling-origin backtest}
+\begin{table}[H]
+  \centering
+  \caption{8-fold rolling-origin backtest (\texttt{min\_train}=24,
+  horizon=3, step=3), metrics averaged across folds.}
+  \label{tab:backtest}
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    Model & MAE (\$) & RMSE (\$) & MAPE & Folds \\
+    \midrule
+    \textbf{SARIMA}         & \textbf{11{,}612} & 13{,}373 & 23.9\% & 8 \\
+    Holt--Winters            & 12{,}314 & 14{,}104 & 25.1\% & 8 \\
+    Lag-regressor (RF)       & 13{,}660 & 15{,}527 & 27.2\% & 8 \\
+    Seasonal-naive baseline  & 13{,}994 & 16{,}207 & 24.9\% & 8 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{04_backtest_predictions.png}
+  \caption{Rolling-origin backtest predictions (Holt--Winters and SARIMA)
+  vs.\ actual, across all 8 folds.}
+  \label{fig:fc-backtest}
+\end{figure}
+The ranking flips: with more forecast origins averaged, SARIMA edges out
+Holt--Winters (\$11{,}612 vs.\ \$12{,}314 MAE), though the two remain
+within about 6\% of each other and both clearly beat the naive baseline
+and the lag-regressor. This is a useful illustration of exactly the
+risk the theory section warns about: the single hold-out split
+(\cref{tab:holdout}) and the 8-fold backtest (\cref{tab:backtest})
+disagree on which of the top two models is "best", and the backtest,
+having 8 origins rather than 1, is the more trustworthy estimate of
+typical future accuracy.
+
+\subsection{Final forecast}
+Given the closeness of the two models and their complementary strengths
+(Holt--Winters: best single-split point forecast; SARIMA: best
+backtest average \emph{and} a principled analytic interval), the final
+projection uses \textbf{Holt--Winters, refit on all 48 months, for the
+point forecast} and \textbf{SARIMA for an 80\% confidence band}.
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{04_final_forecast.png}
+  \caption{History plus the 12-month-ahead forecast: Holt--Winters point
+  forecast and the SARIMA 80\% interval.}
+  \label{fig:fc-final}
+\end{figure}
+The next 12 months are projected at \textbf{\$914{,}903}, against
+\$733{,}215 realised in the last full year (2017) — a projected
+\textbf{+24.8\%} year-on-year. Table~\ref{tab:cat-forecast} breaks this
+down by product category (each fit with its own Holt--Winters model on
+that category's monthly series).
+\begin{table}[H]
+  \centering
+  \caption{Per-category 2018 projection (Holt--Winters).}
+  \label{tab:cat-forecast}
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Category & 2017 actual (\$) & 2018 projected (\$) & Growth \\
+    \midrule
+    Office Supplies & 246{,}097 & 326{,}734 & \textbf{+32.8\%} \\
+    Furniture       & 215{,}387 & 245{,}463 & +14.0\% \\
+    Technology      & 271{,}731 & 272{,}220 & +0.2\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Residual diagnostics}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{04_residual_diagnostics.png}
+  \caption{Holt--Winters in-sample residuals: time plot, histogram, and
+  ACF.}
+  \label{fig:fc-resid}
+\end{figure}
+The Ljung--Box statistic (\cref{eq:ljungbox}) at lag 12 is $Q_{LB}=16.11$,
+$p=0.186$ — we fail to reject the null of no residual autocorrelation,
+i.e.\ the fitted Holt--Winters model has not left obviously exploitable
+structure in its residuals, a reasonable (if not definitive, given
+$T=48$) check of adequacy.
+
+\section{Interpretation}
+Three points carry forward. First, the ADF results
+(\cref{tab:adf}) justify the modelling choice made throughout this
+chapter: the series' seasonal \emph{shape}, not only its trend, needs
+explicit estimation, which is exactly what both Holt--Winters'
+seasonal state $s_t$ and SARIMA's $(P,D,Q)_{12}$ terms provide, and is
+why a naive linear-trend-only model is not attempted. Second, the
+disagreement between the single hold-out split and the 8-fold rolling
+backtest on which of Holt--Winters/SARIMA is "better" is not noise to be
+explained away — it is the expected behaviour of a short series with
+few independent forecast origins, and is the reason this report reports
+\emph{both} evaluations rather than picking whichever looks best. Third,
+the practical takeaway for the business is directional, not a claim of
+precision: total sales are projected up by roughly a quarter next year,
+but growth is sharply uneven by category — Office Supplies is
+accelerating, Technology is flat — which is a materially different and
+more actionable statement than a single store-wide growth number, and
+motivates category-aware inventory/staffing planning rather than a
+uniform +25\% assumption.
