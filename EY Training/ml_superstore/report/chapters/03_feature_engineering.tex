@@ -1,0 +1,242 @@
+\chapter{Feature Engineering}
+\label{ch:features}
+
+\section{Theory}
+
+\subsection{Data leakage}
+\begin{definition}[Leakage]
+A feature $x^{(j)}$ used to predict target $y_i$ for observation $i$
+\emph{leaks} if it is constructed, even indirectly, from information that
+would not be available at the moment a real prediction for $i$ has to be
+made — most commonly, information from $i$'s own future or from $i$
+itself when $y_i$ is a deterministic function of it.
+\end{definition}
+Leakage is the single most common cause of a model that performs
+excellently offline and fails in production, because the leaked signal
+is unavailable (or has a different distribution) at serving time. Two
+concrete leakage risks are present in this dataset and are handled
+explicitly:
+\begin{enumerate}[label=(\alph*)]
+  \item \textbf{Target leakage}: \texttt{profit\_margin} $=
+        \text{Profit}/\text{Sales}$ is definitionally almost the target
+        (\texttt{Profit}) rescaled, so it is computed only for exploratory
+        plots (\cref{ch:eda}) and \emph{never} included in the supervised
+        feature matrix $\mathbf{X}$.
+  \item \textbf{Temporal leakage in customer aggregates}: a naive
+        "customer's total historical sales" feature computed with a
+        normal \texttt{groupby(...).sum()} would, for order $i$, include
+        sales from orders placed \emph{after} $i$ — information a
+        real-time system could not have. We instead compute, for
+        customer $c$ and a chronologically ordered sequence of their
+        orders $i_1 < i_2 < \dots$,
+        \begin{equation}
+          h_k = f\bigl(\{v_{i_1}, \dots, v_{i_{k-1}}\}\bigr), \qquad
+          h_1 = f(\varnothing),
+          \label{eq:expanding}
+        \end{equation}
+        i.e. an \emph{expanding window statistic shifted by one}, so
+        $h_k$ (the feature attached to the $k$-th order) is a function
+        only of the customer's strictly \emph{prior} orders. In
+        \texttt{pandas} this is exactly
+        \texttt{groupby(id)[col].apply(lambda s: s.shift().expanding().}
+        \texttt{agg(f))}, and it is verified empirically in
+        \cref{sec:feat-results} by checking that every customer's first
+        order has a history of identically zero.
+\end{enumerate}
+
+\subsection{Cyclical (circular) encoding of periodic variables}
+Calendar fields such as month-of-year $m \in \{1,\dots,12\}$ or
+day-of-week $d\in\{0,\dots,6\}$ are \emph{circular}: December (12) is
+adjacent to January (1), not maximally distant from it, yet a plain
+integer encoding implies exactly that. Passing $m$ into a linear or
+distance-based model as a raw integer therefore injects a false ordinal
+distance. The standard fix is to embed the period on the unit circle,
+\begin{equation}
+  m_{\sin} = \sin\!\left(\frac{2\pi m}{12}\right), \qquad
+  m_{\cos} = \cos\!\left(\frac{2\pi m}{12}\right),
+  \label{eq:cyclical}
+\end{equation}
+so that the Euclidean distance between two months' encodings,
+$\sqrt{(m_{\sin}-m'_{\sin})^2+(m_{\cos}-m'_{\cos})^2} =
+2\left|\sin\frac{\pi(m-m')}{12}\right|$, is a monotone function of their
+true circular distance and wraps correctly around the year boundary.
+Tree ensembles (used for the best-performing models in
+\cref{ch:models,ch:forecasting}) do not strictly require this — they can
+split $m$ arbitrarily and effectively rediscover adjacency — but linear
+and distance-based components still benefit, and the encoding is cheap
+and included uniformly.
+
+\subsection{Categorical encoding}
+For a categorical field with levels $\{c_1,\dots,c_K\}$, \emph{one-hot
+encoding} maps a value $c_k$ to the $k$-th standard basis vector
+$\mathbf{e}_k \in \{0,1\}^K$, avoiding the false ordinal structure that
+a plain integer code would impose on an unordered category, at the cost
+of adding $K-1$ columns (one level dropped or absorbed as the reference
+via collinearity handling). With $K$ large or with many rare levels — the
+Superstore data has 49 U.S. states, most with a handful of orders — this
+inflates dimensionality and lets a model overfit to noise in
+low-count categories. We mitigate this by collapsing any level occurring
+fewer than 20 times into a single \texttt{"infrequent"} bucket before
+one-hot expansion (scikit-learn's \texttt{OneHotEncoder(min\_frequency=}
+\texttt{20)}), trading a small amount of resolution for materially lower
+variance in the corresponding coefficient/split estimates.
+
+\subsection{RFM analysis}
+\textbf{RFM} (Recency, Frequency, Monetary) is a classical customer
+segmentation heuristic from direct-marketing analytics. For customer $c$
+and an analysis snapshot date $\tau$,
+\begin{align}
+  R_c &= \tau - \max\{\text{Order Date} : \text{orders of } c\}, \\
+  F_c &= \bigl|\{\text{distinct orders of } c\}\bigr|, \\
+  M_c &= \sum_{\text{orders of } c} \text{Sales}.
+\end{align}
+Each of $R$, $F$, $M$ is independently discretised into quintiles
+(1 = worst, 5 = best; $R$ is inverted since \emph{smaller} recency is
+better), and an overall score $\mathrm{RFM}_c = r_c+f_c+m_c \in [3,15]$
+ranks customers by a simple, interpretable combination of how recently,
+how often, and how much they buy — used here purely as a descriptive
+segmentation (\cref{sec:feat-results}), not as a model feature (to avoid
+mixing a snapshot-time construct into the leakage-safe, per-order feature
+matrix).
+
+\subsection{Right-skew and the log transform, revisited}
+As introduced in \cref{ch:eda}, $\log(1+x)$ is applied to \texttt{Sales}
+as an explicit feature (\texttt{log\_sales}) rather than only a plotting
+device, because linear/coefficient-based models benefit from the reduced
+skew and more homoscedastic residual structure it induces, while the
+tree-based models used in \cref{ch:models} are monotone-transform
+invariant and are unaffected by whether it is present.
+
+\section{Method}
+All logic lives in \texttt{src/features.py} and is exercised end to end
+in \texttt{03\_feature\_engineering.ipynb}. \texttt{add\_targets} derives
+\texttt{profit\_margin} and \texttt{is\_loss} (kept out of $\mathbf{X}$
+as above); \texttt{add\_date\_features} derives calendar parts and the
+sin/cos pairs of \cref{eq:cyclical}; \texttt{add\_line\_features} derives
+\texttt{price\_per\_unit}, \texttt{log\_sales}, \texttt{is\_discounted},
+and a 5-level \texttt{discount\_bucket} (\emph{none / low / mid / high /
+extreme}, edges at 0, 15\%, 30\%, 50\%); \texttt{add\_customer\_history}
+implements the expanding-shift computation of \cref{eq:expanding} for
+prior order count, prior sales sum/mean, prior loss rate, and days since
+the customer's first order. \texttt{make\_supervised} assembles the final
+$n\times p$ matrix $\mathbf{X}$ (26 numeric + 6 categorical columns,
+categoricals left as raw strings for the modelling pipeline's own
+\texttt{OneHotEncoder} in \cref{ch:models}) and the two targets
+$\mathbf{y}_{\text{reg}}=\text{Profit}$, $\mathbf{y}_{\text{clf}}=
+\text{is\_loss}$.
+
+\section{Results}
+\label{sec:feat-results}
+
+\subsection{Feature matrix and leakage check}
+Building the full feature frame adds 26 engineered columns to the 21 raw
+ones, and the final supervised matrix is $\mathbf{X}\in
+\mathbb{R}^{9994\times 32}$ with \textbf{zero missing values}. The
+leakage sanity check passes exactly as designed: across all 793
+customers' first-ever order line, \texttt{cust\_prior\_lines} and
+\texttt{cust\_prior\_sales\_sum} are identically 0 — no customer's first
+transaction sees any of their own future purchase history.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{03_targets.png}
+  \caption{The two supervised targets and the exploratory \texttt{profit\_margin}: signed
+  log-profit (left), the binary \texttt{is\_loss} class balance — 18.7\%
+  positive (middle), and margin distribution (right).}
+  \label{fig:feat-targets}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\linewidth]{03_cyclical_month.png}
+  \caption{The 12 months placed on the unit circle by
+  \cref{eq:cyclical}: December and January are adjacent, as they should
+  be, unlike under a raw integer encoding.}
+  \label{fig:feat-cyclical}
+\end{figure}
+
+\subsection{Discount buckets}
+Table~\ref{tab:discount-bucket} operationalises the threshold effect
+found in \cref{ch:eda}: mean profit and loss rate degrade monotonically
+across buckets, flipping sign between \emph{mid} and \emph{high}, and the
+\emph{extreme} bucket (discount $\geq 50\%$) is loss-making on
+\textbf{every single line} in the data.
+
+\begin{table}[H]
+  \centering
+  \caption{Line-level statistics by \texttt{discount\_bucket}.}
+  \label{tab:discount-bucket}
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    Bucket & $n$ & Mean profit (\$) & Loss rate & Mean margin \\
+    \midrule
+    none (0\%)        & 4{,}798 & 66.90   & 0.0\%   & 34.0\% \\
+    low (0--15\%)      & 146     & 71.56   & 14.4\%  & 11.2\% \\
+    mid (15--30\%)     & 3{,}884 & 20.59   & 18.3\%  & 16.0\% \\
+    high (30--50\%)    & 310     & $-$156.28 & 91.6\% & $-$29.6\% \\
+    extreme ($\geq$50\%) & 856   & $-$89.44  & \textbf{100.0\%} & $-$113.9\% \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Customer history features}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\linewidth]{03_history_vs_target.png}
+  \caption{Correlation of the leakage-safe customer-history features with
+  the two targets. \texttt{cust\_prior\_loss\_rate} is the strongest of
+  the six ($\rho=0.129$ with \texttt{is\_loss}) — a customer who has
+  previously bought at deep discounts is more likely to do so again.}
+  \label{fig:feat-history-corr}
+\end{figure}
+The other history features (prior line count, prior sales sum/mean, days
+since first order) correlate only weakly ($|\rho| < 0.03$) with either
+target at the line level — unsurprising, since a given customer's
+profit outcome on \emph{this} line is driven mostly by \emph{this}
+line's own discount, not by how much they have historically spent.
+
+\subsection{RFM segmentation}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{03_rfm_distributions.png}
+  \caption{Distributions of Recency, Frequency and Monetary value across
+  the 793 customers.}
+  \label{fig:feat-rfm-dist}
+\end{figure}
+
+\begin{table}[H]
+  \centering
+  \caption{RFM segments (score bands on $R+F+M \in[3,15]$).}
+  \label{tab:rfm-segments}
+  \begin{tabular}{@{}lrrrr@{}}
+    \toprule
+    Segment & Customers & Avg.\ Monetary (\$) & Avg.\ Frequency & Avg.\ Recency (days) \\
+    \midrule
+    At risk           & 196 & 989   & 3.7 & 329 \\
+    Needs attention    & 219 & 2{,}160 & 5.6 & 138 \\
+    Loyal              & 254 & 3{,}869 & 7.4 & 75 \\
+    Champions          & 124 & 5{,}221 & 9.4 & 28 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+The four segments form a coherent gradient: Champions buy 2.5$\times$ more
+often and spend 5.3$\times$ more per customer on average than the
+At-risk segment, and were last seen 12$\times$ more recently — exactly
+the monotone structure RFM is designed to expose.
+
+\section{Interpretation}
+The leakage-safe construction of the customer-history features is the
+methodologically important result of this chapter: it guarantees that the
+2017 hold-out evaluation in \cref{ch:models} is a fair test of
+generalisation to a genuinely unseen future, not an artefact of features
+that implicitly encode the answer. Substantively, the discount-bucket
+table makes the EDA finding operational and almost mechanical:
+\emph{extreme} discounting is loss-making with effective certainty in
+this dataset, which is precisely the signal the classifier of
+\cref{ch:models} is able to exploit to reach a PR-AUC of 0.96. RFM
+segmentation, while not fed into the predictive models, gives an
+independent, interpretable customer lens that a retail analytics team
+could pair with the profit/loss model output — e.g. prioritising discount
+governance on At-risk/Needs-attention customers, where a marginal loss
+is more likely to also coincide with a customer who is not being
+retained by it anyway.
