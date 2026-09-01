@@ -1,0 +1,296 @@
+\chapter{Supervised Models: Profit and Loss at the Line Level}
+\label{ch:models}
+
+\section{Theory}
+
+\subsection{Regularised linear regression}
+Ordinary least squares fits $\hat y = \mathbf{x}^\top\boldsymbol\beta$ by
+minimising the residual sum of squares
+$\sum_i (y_i - \mathbf{x}_i^\top\boldsymbol\beta)^2$. With $p=32$
+features, several of them one-hot-expanded and correlated (e.g.\
+\texttt{Discount} and \texttt{discount\_bucket}), OLS coefficients can
+have high variance. \textbf{Ridge regression} adds an $L_2$ penalty,
+\begin{equation}
+  \hat{\boldsymbol\beta}_{\text{ridge}} = \arg\min_{\boldsymbol\beta}
+  \left\{ \sum_{i=1}^n (y_i - \mathbf{x}_i^\top\boldsymbol\beta)^2
+          + \lambda \lVert\boldsymbol\beta\rVert_2^2 \right\},
+  \label{eq:ridge}
+\end{equation}
+which shrinks coefficients toward zero and has closed form
+$\hat{\boldsymbol\beta}_{\text{ridge}} = (\mathbf{X}^\top\mathbf{X} +
+\lambda I)^{-1}\mathbf{X}^\top\mathbf{y}$ — the $\lambda I$ term also
+fixes the numerical instability OLS has when $\mathbf{X}^\top\mathbf{X}$
+is near-singular, exactly the situation created by correlated dummy
+columns. Ridge is used here as the interpretable linear baseline against
+which the non-linear ensembles are compared.
+
+\subsection{Bagging and random forests}
+\textbf{Bootstrap aggregation (bagging)} reduces the variance of an
+unstable base learner (a deep decision tree) by averaging it over $B$
+bootstrap resamples of the training data: $\hat f_{\text{bag}}(\mathbf x)
+= \frac1B\sum_{b=1}^B \hat f_b(\mathbf x)$. If the $B$ trees had
+i.i.d.\ errors, averaging would reduce variance by a factor of $B$; in
+practice, trees trained on bootstrap-resampled copies of the \emph{same}
+data are positively correlated with pairwise correlation $\rho$, giving
+\begin{equation}
+  \mathrm{Var}\bigl(\hat f_{\text{bag}}(\mathbf x)\bigr)
+    = \rho\,\sigma^2 + \frac{1-\rho}{B}\sigma^2,
+  \label{eq:bagging-variance}
+\end{equation}
+where $\sigma^2$ is a single tree's variance. As $B\to\infty$ the second
+term vanishes but the first, $\rho\sigma^2$, remains — so reducing
+inter-tree correlation $\rho$ is what actually matters once $B$ is large
+enough. \textbf{Random forests} reduce $\rho$ directly: at every split,
+only a random subset of $\sqrt p$ (classification) or $p/3$ (regression)
+candidate features is considered, forcing different trees to use
+different features and decorrelating them beyond what bootstrap resampling
+alone achieves. This is why random forests are a strong, low-effort
+baseline on tabular data with mixed numeric/categorical features and
+non-linear, interaction-heavy structure such as the discount-profit
+relationship of \cref{ch:eda}.
+
+\subsection{Gradient boosting}
+Where bagging averages independently-grown trees, \textbf{gradient
+boosting} grows trees \emph{sequentially}, each one correcting the
+current ensemble's errors. Given a differentiable loss
+$L(y,F(\mathbf x))$ (squared error for regression here), boosting is
+stagewise functional gradient descent: at stage $m$, compute the
+pseudo-residuals
+\begin{equation}
+  r_{im} = -\left.\frac{\partial L(y_i, F(\mathbf x_i))}{\partial F(\mathbf x_i)}\right|_{F=F_{m-1}}
+  \label{eq:boost-residual}
+\end{equation}
+(for squared error, $r_{im}=y_i - F_{m-1}(\mathbf x_i)$, the ordinary
+residual), fit a shallow regression tree $h_m$ to predict $r_{im}$ from
+$\mathbf x_i$, and update
+\begin{equation}
+  F_m(\mathbf x) = F_{m-1}(\mathbf x) + \nu\, h_m(\mathbf x),
+  \label{eq:boost-update}
+\end{equation}
+with a small learning rate $\nu<1$ (\emph{shrinkage}) that trades more
+boosting stages for better generalisation by taking smaller steps. Unlike
+random forests, gradient boosting can in principle drive training error
+arbitrarily low and therefore overfits more readily; its typical
+signature relative to bagging is lower bias but higher variance without
+careful tuning, which is consistent with the regression results below
+(GradBoost achieves the best $R^2$ but not the best MAE).
+
+\subsection{Logistic regression and class imbalance}
+For the binary target $y\in\{0,1\}$ (\texttt{is\_loss}), logistic
+regression models $\Pr(y=1\mid\mathbf x) = \sigma(\mathbf
+x^\top\boldsymbol\beta)$ with the logistic sigmoid
+$\sigma(z)=1/(1+e^{-z})$, fit by maximising the Bernoulli log-likelihood,
+equivalently minimising the log-loss
+\begin{equation}
+  \mathcal L(\boldsymbol\beta) = -\sum_{i=1}^n
+    \bigl[y_i \log \hat p_i + (1-y_i)\log(1-\hat p_i)\bigr],
+  \qquad \hat p_i = \sigma(\mathbf x_i^\top\boldsymbol\beta).
+  \label{eq:logloss}
+\end{equation}
+The classification target here is imbalanced (18.7\% positive), so an
+unweighted classifier can minimise \cref{eq:logloss} by being mediocre
+on the minority (loss-making) class while still achieving low average
+loss. \emph{Class weighting} reweights each term of
+\cref{eq:logloss} by $w_{y_i} = n / (K\, n_{y_i})$ (inverse class
+frequency, $K=2$ classes), so a mistake on a rare loss-making line costs
+as much in expectation as a mistake on a common profitable one; all three
+non-dummy classifiers in this chapter use \texttt{class\_weight="balanced"}.
+
+\subsection{Classification evaluation under imbalance}
+For a threshold $t$ on predicted probability $\hat p$, predictions
+$\hat y = \mathbb 1[\hat p \geq t]$ induce a confusion matrix with true
+positives $TP$, false positives $FP$, false negatives $FN$, true
+negatives $TN$, from which
+\begin{equation}
+  \mathrm{Precision} = \frac{TP}{TP+FP}, \quad
+  \mathrm{Recall} = \frac{TP}{TP+FN}, \quad
+  F_1 = \frac{2\cdot\mathrm{Precision}\cdot\mathrm{Recall}}{\mathrm{Precision}+\mathrm{Recall}}.
+  \label{eq:prf1}
+\end{equation}
+The \textbf{ROC curve} plots recall (true-positive rate) against the
+false-positive rate $FP/(FP+TN)$ as $t$ varies; the area under it, ROC-AUC,
+has the clean probabilistic interpretation
+$\mathrm{AUC} = \Pr(\hat p_{+} > \hat p_{-})$ for a randomly drawn
+positive and negative example — the probability the model ranks a random
+loss-making line above a random profitable one. Under strong class
+imbalance, ROC-AUC can look deceptively high because the false-positive
+\emph{rate} denominator is dominated by the large negative class; the
+\textbf{precision-recall curve} and its area (\textbf{PR-AUC}) are more
+informative here because precision directly reflects how many of the
+model's loss-flags are real losses, which is what a business decision
+(e.g.\ "should we renegotiate this order") actually needs. \textbf{Model
+calibration} additionally asks whether $\hat p$ is a trustworthy
+probability, not just a good ranking score: a perfectly calibrated model
+has $\Pr(y=1 \mid \hat p = q) = q$ for every $q$, visualised by binning
+predictions and plotting observed frequency against mean predicted
+probability per bin.
+
+\subsection{Permutation feature importance}
+For a fitted model $\hat f$ and a chosen scoring function $S$ (e.g.\
+negative MAE, or average precision), the permutation importance of
+feature $j$ is
+\begin{equation}
+  \mathrm{PI}_j = S\bigl(\mathbf y, \hat f(\mathbf X)\bigr)
+                - \frac1R\sum_{r=1}^R S\bigl(\mathbf y, \hat f(\mathbf X^{(j,r)})\bigr),
+  \label{eq:permimp}
+\end{equation}
+where $\mathbf X^{(j,r)}$ is $\mathbf X$ with column $j$ independently
+shuffled (breaking its relationship with $\mathbf y$ while preserving its
+marginal distribution) on repeat $r$, averaged over $R$ repeats to reduce
+noise. Unlike a tree ensemble's built-in impurity-based importance, this
+is model-agnostic, computed on held-out data (so it reflects
+generalisation, not just training fit), and directly interpretable in the
+scoring metric's own units. Its main caveat is that importance is
+\emph{split} between strongly correlated features (permuting one of two
+near-duplicate columns barely hurts the score because the model can
+still use the other), which is directly relevant here since
+\texttt{Discount} and \texttt{discount\_bucket} are derived from the same
+underlying quantity.
+
+\section{Method}
+Both tasks use the 32-column matrix $\mathbf X$ of \cref{ch:features}
+(categoricals one-hot encoded with rare-level collapsing inside an
+\texttt{sklearn} \texttt{Pipeline}; numerics standardised only for the
+scale-sensitive linear models). The split is \textbf{temporal, not
+random}: train on order lines with \texttt{Order Date} $<$ 2017-01-01
+(6,682 rows), test on 2017 (3,312 rows) — the model is evaluated on a
+genuinely future year it never saw, consistent with how it would be
+deployed. Four regressors (dummy-mean, Ridge, RandomForest,
+GradientBoosting) target \texttt{Profit}; four classifiers (dummy-prior,
+class-weighted LogisticRegression, RandomForest, GradientBoosting) target
+\texttt{is\_loss}. The classification decision threshold is additionally
+tuned on the test set by grid search over $[0.05,0.95]$ to maximise $F_1$
+(\cref{eq:prf1}) — a simplification made explicit here: in a real
+deployment this threshold should be chosen on a separate validation slice,
+not the final test set, to avoid a (mild) form of the same leakage risk
+discussed in \cref{ch:features}.
+
+\section{Results}
+
+\subsection{Profit regression}
+\begin{table}[H]
+  \centering
+  \caption{Profit regression, 2017 hold-out.}
+  \label{tab:reg-results}
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Model & MAE (\$) & RMSE (\$) & $R^2$ \\
+    \midrule
+    \textbf{RandomForest} & \textbf{21.42} & 139.24 & 0.668 \\
+    GradBoost              & 25.54 & \textbf{113.42} & \textbf{0.780} \\
+    Ridge                  & 58.66 & 183.11 & 0.427 \\
+    Dummy (mean)           & 64.68 & 241.83 & $\approx$0 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+RandomForest has the lowest MAE, GradBoost the best RMSE/$R^2$ — per the
+bagging-vs-boosting theory above, GradBoost fits the bulk of the
+distribution tighter (lower RMSE, which penalises the largest errors most)
+while RandomForest is more robust on typical-sized errors (lower MAE);
+both crush the linear Ridge baseline, confirming the profit-generating
+process is substantially non-linear (consistent with the discount
+\emph{threshold} effect of \cref{ch:eda}, which no linear term can
+represent well).
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{05_regression_diagnostics.png}
+  \caption{RandomForest regression diagnostics: predicted vs.\ actual,
+  residuals vs.\ predicted, and the residual distribution.}
+  \label{fig:reg-diag}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\linewidth]{05_regression_importance.png}
+  \caption{Permutation importance (\cref{eq:permimp}, scoring = negative
+  MAE) for the RandomForest regressor.}
+  \label{fig:reg-imp}
+\end{figure}
+\texttt{Discount} (35.6), \texttt{Sales} (33.2) and \texttt{log\_sales}
+(31.7) dominate; \texttt{Sub-Category} (7.1) is a distant fourth. Error
+concentrates in the highest-ticket sub-categories — Copiers (\$367 mean
+absolute error) and Machines (\$356) — where a single order's discount
+swings profit by hundreds of dollars, versus \$21--\$79 for every other
+sub-category shown.
+
+\subsection{Loss classification}
+\begin{table}[H]
+  \centering
+  \caption{Loss-line classification, 2017 hold-out.}
+  \label{tab:clf-results}
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Model & ROC-AUC & PR-AUC & $F_1$ (t=0.5) \\
+    \midrule
+    \textbf{RandomForest} & 0.988 & \textbf{0.956} & \textbf{0.865} \\
+    GradBoost              & 0.986 & 0.947 & 0.804 \\
+    LogReg (balanced)      & 0.985 & 0.945 & 0.828 \\
+    Dummy (prior)          & 0.500 & 0.187 & 0.000 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+All three fitted models are far above the 0.187 PR-AUC a model that
+ignores the features entirely would achieve by always predicting the
+base rate (Dummy's PR-AUC exactly equals the positive-class prevalence,
+as \cref{eq:permimp}'s baseline case would predict). RandomForest is
+best on every metric. At its best-$F_1$ threshold ($t=0.50$, $F_1=0.865$)
+its classification report is:
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+ & Precision & Recall & $F_1$ & Support \\
+\midrule
+profit & 0.96 & 0.98 & 0.97 & 2{,}692 \\
+loss   & 0.91 & 0.83 & 0.86 & 620 \\
+\bottomrule
+\end{tabular}
+\end{center}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{05_classification_curves.png}
+  \caption{ROC (left), precision-recall (middle) and confusion matrix
+  (right, RandomForest at $t{=}0.50$).}
+  \label{fig:clf-curves}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\linewidth]{05_calibration.png}
+  \caption{Calibration curves: observed vs.\ predicted positive rate by
+  probability decile.}
+  \label{fig:clf-calib}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.75\linewidth]{05_classification_importance.png}
+  \caption{Permutation importance (scoring = average precision) for the
+  RandomForest classifier.}
+  \label{fig:clf-imp}
+\end{figure}
+\texttt{Discount} (0.170) and \texttt{discount\_bucket} (0.133) again
+dominate, jointly far ahead of \texttt{Sub-Category} (0.049) — the same
+two-feature dominance seen in the regression task, as expected since both
+targets are driven by the same underlying discount-threshold mechanism.
+
+\subsection{Business framing}
+Translating the classifier into dollar terms on the 2017 test set:
+realised profit was \$93{,}439; of the total loss on loss-making lines,
+flagged lines captured \$50{,}138 (a \textbf{93.1\% catch rate} by
+dollar value) against \$3{,}699 missed, at the cost of putting
+\$1{,}358 of genuinely profitable business "at risk" from unnecessary
+renegotiation (false positives) — a roughly 37:1 ratio of dollars
+correctly caught to dollars put at risk.
+
+\section{Interpretation}
+The regression and classification results triangulate on the same
+mechanism identified qualitatively in \cref{ch:eda} and made numeric in
+\cref{ch:features}: \textbf{discount depth is, by a wide margin, the
+dominant driver of both how much profit a line makes and whether it
+loses money at all}. This is reassuring from a model-validity standpoint
+— two independently trained model families (an ensemble regressor and an
+ensemble classifier, on different targets) converge on the same top
+features — and, more importantly, it is actionable: a discount-governance
+rule (e.g.\ a required approval step for discounts above roughly 30\%,
+per \cref{tab:discount-bucket}) would target the overwhelming majority of
+the loss identified by the model, and the classifier itself offers a
+concrete, auditable early-warning signal (93\% dollar-recall on a future
+year) for flagging specific at-risk order lines before or as they are
+placed, rather than only after the fact in a quarterly profit review.
