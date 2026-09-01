@@ -1,0 +1,180 @@
+\chapter{Conclusion}
+\label{ch:conclusion}
+
+\section{Synthesis}
+The four analytical chapters were designed to triangulate on the same
+underlying business question — where does this retailer's profit come
+from, and where does it leak away — from three largely independent
+angles, and they agree:
+
+\begin{itemize}
+  \item \textbf{Descriptively} (\cref{ch:eda}), mean profit and the
+        empirical loss rate degrade sharply once line-level discount
+        exceeds roughly 20--30\%, with an exact 0\% loss rate at zero
+        discount rising to 96.8\% at $\geq$30\% discount.
+  \item \textbf{By construction} (\cref{ch:features}), the same threshold
+        appears as a clean, monotone table once discount is bucketed:
+        every line discounted 50\% or more in this dataset is
+        loss-making, without exception.
+  \item \textbf{By trained model} (\cref{ch:models}), two independently
+        fitted, different-target ensembles (a profit regressor and a
+        loss classifier) both rank \texttt{Discount} and its
+        bucketed/derived forms as overwhelmingly the most important
+        predictor, well ahead of category, region, shipping mode, or
+        any customer-history feature.
+\end{itemize}
+That three different analytical lenses — plain descriptive statistics,
+an engineered lookup table, and a fitted non-linear model with formal
+held-out evaluation — converge on the same driver is stronger evidence
+than any one of them alone, and is the report's central, actionable
+finding: \textbf{a discount governance policy (e.g.\ requiring approval
+above roughly a 30\% discount) targets the great majority of preventable
+loss in this business}, and the loss classifier of \cref{ch:models}
+gives a concrete, auditable tool for flagging specific at-risk lines,
+catching 93\% of realised 2017 loss dollars on a strict future-year
+evaluation.
+
+The secondary line of work, forecasting (\cref{ch:forecasting}),
+is a comparatively harder problem on this data — a single 48-month
+series is a small sample by time-series standards — but nonetheless
+supports a directionally useful conclusion: aggregate sales are on a
+clear upward trend (roughly +25\% projected for the next 12 months), with
+materially uneven growth by category (Office Supplies accelerating,
+Technology flat), information a single store-wide growth assumption
+would obscure.
+
+\section{Limitations}
+\begin{itemize}
+  \item \textbf{Correlation, not causation, on discounting.} The finding
+        that deep discounts coincide with losses is robust and
+        consistent across every analysis in this report, but none of
+        them establishes that \emph{cutting} discounts on the affected
+        lines would recover that profit at the same customers' current
+        purchase volumes — price elasticity of demand is not modelled,
+        and a real governance policy should be piloted (e.g.\ as an
+        A/B or staged rollout) rather than deployed store-wide on the
+        strength of observational data alone.
+  \item \textbf{Small forecasting sample.} $T=48$ monthly observations
+        is little more than one seasonal cycle's worth of replication
+        (four Decembers), so the 8-fold backtest of \cref{ch:forecasting}
+        — while far better than a single split — still rests on
+        overlapping, non-independent windows of a short series;
+        confidence intervals and model rankings there should be treated
+        as indicative rather than tightly precise.
+  \item \textbf{No hyperparameter search.} Both the forecasting models
+        (SARIMA order, Holt--Winters trend/seasonal type) and the
+        supervised models (tree depth, learning rate, number of
+        estimators) use fixed, reasonable-default configurations rather
+        than a tuned grid/Bayesian search; the reported metrics are
+        therefore a floor on achievable performance for each model
+        family, not necessarily its best achievable result.
+  \item \textbf{Single dataset, single hold-out year.} All supervised
+        results are evaluated on one train/test temporal split
+        (2014--16 vs.\ 2017); a rolling-origin backtest analogous to
+        \cref{ch:forecasting}'s would give a more robust estimate of
+        out-of-year generalisation for the supervised models too, at
+        the cost of additional retraining.
+  \item \textbf{Synthetic/aggregated public dataset.} The Superstore
+        dataset is a widely used teaching/demo dataset rather than a
+        live production feed; absolute dollar figures and even some
+        structural regularities (e.g.\ the very sharp, almost
+        deterministic discount-loss threshold) may be cleaner than a
+        genuinely messy operational dataset would be, and any
+        recommendation here should be re-validated against the target
+        business's real data before acting on it.
+\end{itemize}
+
+\section{Recommendations}
+\begin{enumerate}[label=\arabic*.]
+  \item \textbf{Introduce a discount approval gate} around the 30\%
+        threshold identified in \cref{tab:discount-bucket,fig:clf-imp},
+        prioritised at the sub-category level (Tables, Bookcases first,
+        per \cref{tab:subcat-profit}).
+  \item \textbf{Operationalise the loss classifier} of \cref{ch:models}
+        as a pre-order or end-of-day flag on discounted lines, using the
+        catch-rate/false-flag trade-off of \cref{sec:business-framing}
+        as the basis for setting the alert threshold to the
+        business's actual tolerance for false positives.
+  \item \textbf{Plan 2018 category growth unevenly}, not with a single
+        store-wide multiplier: increase inventory/staffing allocation
+        toward Office Supplies (+32.8\% projected) and hold Technology
+        roughly flat (+0.2\% projected), per \cref{tab:cat-forecast}.
+  \item \textbf{Pilot before store-wide rollout} of any discount policy
+        change, given the correlational nature of the evidence
+        (Limitations, above), and re-fit the forecasting and supervised
+        models on a rolling basis as new months of data arrive — the
+        entire pipeline (\texttt{src/pipeline.py}) is built exactly for
+        this kind of periodic re-run.
+\end{enumerate}
+
+\section{Future work}
+Natural extensions, roughly in order of expected value for effort:
+(i) a genuine \emph{uplift}/causal model for discount policy (e.g.\
+comparing similar orders that did and did not receive a discount, or a
+proper randomised pilot) to move the central finding from correlational
+to causal; (ii) hyperparameter tuning (grid or Bayesian search) for both
+the forecasting and supervised models, with nested/rolling
+cross-validation rather than a single split; (iii) hierarchical
+forecasting (reconciling the whole-store and per-category forecasts of
+\cref{tab:cat-forecast} to be mutually consistent, e.g.\ via bottom-up or
+MinT reconciliation); and (iv) extending the supervised models with
+richer product- and customer-level features (e.g.\ text features from
+\texttt{Product Name}, or a proper customer lifetime value model) beyond
+the RFM segmentation of \cref{ch:features}, which was used here only
+descriptively.
+
+\appendix
+\chapter{Reproducibility}
+\label{app:repro}
+
+\section{Chapter-to-code map}
+\begin{table}[H]
+  \centering
+  \caption{Every figure and number in this report traces to one of these
+  notebook/module pairs.}
+  \label{tab:repro-map}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    Report chapter & Notebook & Core module \\
+    \midrule
+    \cref{ch:eda}         & \texttt{01\_data\_overview.ipynb}, \texttt{02\_eda.ipynb} & \texttt{src/data\_loader.py} \\
+    \cref{ch:features}    & \texttt{03\_feature\_engineering.ipynb} & \texttt{src/features.py} \\
+    \cref{ch:forecasting} & \texttt{04\_forecasting.ipynb} & \texttt{src/forecasting.py} \\
+    \cref{ch:models}      & \texttt{05\_supervised\_models.ipynb} & \texttt{src/modeling.py} \\
+    all (glue)             & \texttt{06\_end\_to\_end.ipynb} & \texttt{src/pipeline.py} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{One-command reproduction}
+From \texttt{EY Training/ml\_superstore/}:
+\begin{lstlisting}
+python -m pip install -r requirements.txt
+python -m src.pipeline              # ~15s: writes outputs/REPORT.md
+                                     # and outputs/tables/pipeline_*.csv
+\end{lstlisting}
+Every figure embedded in this report is regenerated by re-executing the
+notebooks in numeric order (see \texttt{../README.md}); this document is
+then rebuilt with \texttt{pdflatex} against the (unchanged, unless the
+underlying data changes) \texttt{outputs/figures/} directory, per
+\texttt{report/README.md}.
+
+\section{Notation summary}
+\begin{table}[H]
+  \centering
+  \caption{Symbols used across chapters.}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    Symbol & Meaning \\
+    \midrule
+    $n$, $p$ & sample size, number of features (supervised setting) \\
+    $\mathbf x_i$, $y_i$, $\hat y_i$ & feature vector, true target, predicted target for row $i$ \\
+    $T$, $y_t$, $\hat y_{t+h}$ & series length, monthly value at $t$, $h$-step forecast (\cref{ch:forecasting}) \\
+    $B$, $s$ & backshift operator, seasonal period (12 months) \\
+    $\alpha,\beta,\gamma$ & Holt--Winters level/trend/seasonal smoothing parameters \\
+    $\lambda$ & Ridge regularisation strength (\cref{eq:ridge}) \\
+    $\sigma(\cdot)$ & logistic sigmoid \\
+    $\rho$ & Pearson correlation (\cref{ch:eda}) or inter-tree correlation (\cref{ch:models}), disambiguated in context \\
+    \bottomrule
+  \end{tabular}
+\end{table}
