@@ -1,0 +1,123 @@
+{
+  "generated_utc": "2026-09-01T14:42:53+00:00",
+  "source_csv": "Sample - Superstore.csv",
+  "n_order_lines": 9994,
+  "date_range": [
+    "2014-01-03",
+    "2017-12-30"
+  ],
+  "features": {
+    "n_rows": 9994,
+    "n_engineered_features": 26,
+    "engineered_features": [
+      "profit_margin",
+      "is_loss",
+      "order_year",
+      "order_month",
+      "order_quarter",
+      "order_week",
+      "order_dayofweek",
+      "order_dayofyear",
+      "order_is_weekend",
+      "order_is_month_end",
+      "order_is_quarter_end",
+      "month_sin",
+      "month_cos",
+      "dow_sin",
+      "dow_cos",
+      "price_per_unit",
+      "log_sales",
+      "is_discounted",
+      "discount_bucket",
+      "ship_days",
+      "cust_prior_lines",
+      "cust_prior_sales_sum",
+      "cust_prior_sales_mean",
+      "cust_prior_loss_rate",
+      "cust_days_since_first",
+      "cust_is_first_order"
+    ],
+    "n_customers": 793
+  },
+  "forecast": {
+    "holdout": {
+      "HoltWinters": {
+        "MAE": 11455.701390689725,
+        "RMSE": 12543.549043728888,
+        "MAPE": 22.60154650650502
+      },
+      "SARIMA": {
+        "MAE": 13411.311707195833,
+        "RMSE": 15989.429650929009,
+        "MAPE": 26.746828701074772
+      }
+    },
+    "backtest_HoltWinters": {
+      "MAE": 12314.088568561196,
+      "RMSE": 14103.947266872252,
+      "MAPE": 25.092155977037734
+    },
+    "next_12m_total": 914902.8874700768,
+    "last_full_year_total": 733215.2551999999,
+    "yoy_growth_pct": 24.7795761178643
+  },
+  "models": {
+    "regression": {
+      "Dummy(mean)": {
+        "MAE": 64.68446860946273,
+        "RMSE": 241.82873958634252,
+        "R2": -7.559743196994262e-06
+      },
+      "Ridge": {
+        "MAE": 58.66149730645991,
+        "RMSE": 183.10816272996746,
+        "R2": 0.4266723744945222
+      },
+      "RandomForest": {
+        "MAE": 21.424535991064136,
+        "RMSE": 139.24110392403162,
+        "R2": 0.668470350845765
+      },
+      "GradBoost": {
+        "MAE": 25.539340679220047,
+        "RMSE": 113.4196725771254,
+        "R2": 0.7800296038619822
+      }
+    },
+    "classification": {
+      "Dummy(prior)": {
+        "ROC_AUC": 0.5,
+        "PR_AUC": 0.18719806763285024,
+        "F1": 0.0,
+        "threshold": 0.5
+      },
+      "LogReg": {
+        "ROC_AUC": 0.9846127114988256,
+        "PR_AUC": 0.9449212092961422,
+        "F1": 0.8278285312719607,
+        "threshold": 0.5
+      },
+      "RandomForest": {
+        "ROC_AUC": 0.9881003451085654,
+        "PR_AUC": 0.9559342921339707,
+        "F1": 0.8648648648648649,
+        "threshold": 0.5
+      },
+      "GradBoost": {
+        "ROC_AUC": 0.986092304558309,
+        "PR_AUC": 0.9465785092906126,
+        "F1": 0.8037558685446009,
+        "threshold": 0.5
+      }
+    },
+    "best_regressor": "RandomForest",
+    "best_classifier": "RandomForest",
+    "tuned_threshold": {
+      "threshold": 0.49999999999999994,
+      "F1": 0.8648648648648649
+    },
+    "n_train": 6682,
+    "n_test": 3312
+  },
+  "runtime_sec": 13.7
+}
