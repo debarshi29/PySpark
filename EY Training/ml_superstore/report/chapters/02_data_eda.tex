@@ -1,0 +1,265 @@
+\chapter{Data Quality and Exploratory Analysis}
+\label{ch:eda}
+
+\section{Theory}
+
+\subsection{Data quality auditing}
+Before any modelling, three questions must be answered about a tabular
+dataset $D = \{(\mathbf{x}_i)\}_{i=1}^n$: (i) is every field typed and
+parsed correctly, (ii) is any value missing, and (iii) is any row
+duplicated. Formally, for a column $X$ we report the \emph{missingness
+rate} $\hat\pi_X = \frac{1}{n}\sum_{i=1}^n \mathbb{1}[x_{i} \text{ is
+NA}]$ and \emph{cardinality} $|\{x_i\}|$. A duplicate row under a primary
+key $k$ is any pair $i \neq j$ with $k_i = k_j$; if such pairs exist, the
+key does not uniquely identify a record and downstream joins or grouped
+aggregates will silently double-count. These checks are cheap and
+guard against exactly the class of error (a re-exported CSV with
+duplicated header rows, an encoding mismatch producing NA in a text field)
+that otherwise corrupts every later stage silently.
+
+\subsection{Descriptive statistics and distribution shape}
+For a numeric column $X$ with observed values $x_1,\dots,x_n$, the sample
+mean $\bar x = \frac1n\sum_i x_i$ and variance
+$s^2 = \frac{1}{n-1}\sum_i (x_i-\bar x)^2$ summarise location and spread,
+but retail money variables are rarely well described by them alone because
+they are \emph{right-skewed}: many small transactions and a long tail of
+large ones. Skewness is measured by the third standardised moment,
+\begin{equation}
+  \gamma_1 = \frac{\frac1n\sum_i (x_i - \bar x)^3}{\left(\frac1n\sum_i (x_i-\bar x)^2\right)^{3/2}},
+  \label{eq:skew}
+\end{equation}
+with $\gamma_1 > 0$ indicating a right tail. A common remedy that
+stabilises both skew and the variance-vs-mean relationship
+(heteroscedasticity) seen in multiplicative processes like sales is the
+$\log(1+x)$ transform, used throughout this project on \texttt{Sales}
+(and, with a sign-preserving variant, on \texttt{Profit}) purely for
+\emph{visualisation}; models are always trained on the original scale
+unless stated otherwise, since tree ensembles are invariant to monotone
+transforms and linear models' coefficients are more directly interpretable
+untransformed here.
+
+\subsection{Correlation}
+For two numeric variables $X, Y$, the Pearson correlation coefficient
+\begin{equation}
+  \rho_{XY} = \frac{\mathrm{Cov}(X,Y)}{\sigma_X \sigma_Y}
+            = \frac{\sum_i (x_i - \bar x)(y_i - \bar y)}
+                   {\sqrt{\sum_i (x_i-\bar x)^2}\sqrt{\sum_i (y_i-\bar y)^2}}
+  \label{eq:pearson}
+\end{equation}
+measures \emph{linear} association, $\rho_{XY}\in[-1,1]$. It is
+insensitive to non-linear relationships (e.g. a U-shape can have
+$\rho \approx 0$ despite strong dependence), which is precisely why
+\cref{sec:eda-discount-profit} supplements the correlation matrix with a
+binned conditional-mean plot: discount and profit turn out to have a
+threshold-like, not linear, relationship.
+
+\subsection{Seasonal-trend decomposition (STL)}
+A time series $y_t$ is classically modelled as the additive sum of a
+slowly-varying trend $T_t$, a periodic seasonal component $S_t$ (period
+$L$, here $L=12$ months), and a remainder $R_t$:
+\begin{equation}
+  y_t = T_t + S_t + R_t.
+  \label{eq:stl-additive}
+\end{equation}
+\textbf{STL} (Seasonal-Trend decomposition using \textsc{Loess}, Cleveland
+et al., 1990) estimates $T_t$ and $S_t$ by alternating two local
+regression (LOESS) smooths: it removes a running estimate of $T_t$ from
+$y_t$ to expose the seasonal cycle, smooths within each seasonal
+sub-series (all Januaries, all Februaries, \dots) to obtain a smoothly
+time-varying $S_t$, then smooths $y_t - S_t$ to update $T_t$; this is
+iterated to convergence. Unlike a single global seasonal index, STL lets
+the seasonal shape drift slowly over the four years of data, and unlike
+classical decomposition it is robust to outliers when the \texttt{robust}
+option down-weights large residuals between iterations. We use STL purely
+as a diagnostic here; the forecasting models of \cref{ch:forecasting} are
+fitted directly on $y_t$, not on the decomposed components.
+
+\section{Method}
+The raw CSV is read with \texttt{src.data\_loader.load\_raw} (encoding
+auto-detection across UTF-8/Latin-1/CP1252) and typed with \texttt{clean},
+which parses \texttt{Order Date}/\texttt{Ship Date}, strips whitespace from
+every text column, drops exact and \texttt{Row ID} duplicates, and derives
+\texttt{Ship Days} $= \text{Ship Date} - \text{Order Date}$. The quality
+audit, univariate/bivariate plots and STL decomposition are produced by
+notebooks \texttt{01\_data\_overview.ipynb} and \texttt{02\_eda.ipynb}.
+
+\section{Results}
+
+\subsection{Data quality}
+The audit (\texttt{outputs/tables/01\_data\_quality.csv}) finds
+\textbf{zero missing values in any of the 21 raw columns}, no fully
+duplicated rows, and no duplicate \texttt{Row ID}s after cleaning — the
+data is analysis-ready without imputation. \texttt{Order Date} spans
+2014-01-03 to 2017-12-30 (1{,}237 distinct dates); \texttt{Ship Days} is
+always non-negative, i.e. no order ships before it is placed.
+
+\subsection{Distributions}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{01_raw_distributions.png}
+  \caption{Histograms (log-count $y$-axis) of \texttt{Sales}, \texttt{Profit}
+  and \texttt{Discount} on the raw scale, showing pronounced right skew in
+  \texttt{Sales} and a bimodal, discount-tier structure in \texttt{Discount}.}
+  \label{fig:raw-dist}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{02_log_transforms.png}
+  \caption{Left: $\log(1+\text{Sales})$ recovers an approximately unimodal,
+  near-symmetric shape (\cref{eq:skew} in the raw scale is large and
+  positive; after the transform it is close to zero). Right: signed
+  $\log(1+|\text{Profit}|)$, showing the loss-making mass as a distinct
+  negative lobe rather than a long left tail.}
+  \label{fig:log-dist}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{02_univariate_categorical.png}
+  \caption{Order-line counts by \texttt{Ship Mode}, \texttt{Segment},
+  \texttt{Region} and \texttt{Category}. Standard Class and the Consumer
+  segment dominate; the four regions are comparably sized, with West
+  largest.}
+  \label{fig:cat-dist}
+\end{figure}
+
+\subsection{Profit by product hierarchy}
+Table~\ref{tab:subcat-profit} (full detail in
+\texttt{outputs/tables/02\_by\_subcategory.csv}) aggregates profit by
+sub-category. \textbf{Tables} lose \$17{,}725 overall despite \$207k of
+sales, and \textbf{Bookcases} lose \$3{,}473 — both at average discounts
+above 21\%, well above the store-wide mean. \textbf{Supplies} is also
+marginally loss-making. Every other sub-category is net profitable, led by
+Copiers (37\% margin) and Phones (\$330k sales, 13\% margin).
+
+\begin{table}[H]
+  \centering
+  \caption{Selected sub-categories by total profit (ascending). Full table
+  has all 17 sub-categories.}
+  \label{tab:subcat-profit}
+  \begin{tabular}{@{}llrrrr@{}}
+    \toprule
+    Category & Sub-Category & Sales (\$) & Profit (\$) & Avg.\ Discount & Margin \\
+    \midrule
+    Furniture & Tables      & 206{,}966 & $-$17{,}725 & 26.1\% & $-$8.6\% \\
+    Furniture & Bookcases   & 114{,}880 & $-$3{,}473  & 21.1\% & $-$3.0\% \\
+    Office Supplies & Supplies & 46{,}674 & $-$1{,}189 & 7.7\% & $-$2.5\% \\
+    \multicolumn{6}{c}{\dots (14 profitable sub-categories) \dots} \\
+    Technology & Phones     & 330{,}007 & 44{,}516    & 15.5\% & 13.5\% \\
+    Technology & Copiers    & 149{,}528 & 55{,}618    & 16.2\% & \textbf{37.2\%} \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.8\linewidth]{02_profit_by_subcategory.png}
+  \caption{Total profit by sub-category; red bars are net loss-makers.}
+  \label{fig:subcat-profit}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.85\linewidth]{02_region_segment_heatmap.png}
+  \caption{Sales (left) and profit (right) cross-tabulated by Region and
+  Segment. Sales are fairly even across cells; profit is not — the
+  Central/Consumer cell is comparatively weak.}
+  \label{fig:region-segment}
+\end{figure}
+
+\subsection{Discount versus profit}
+\label{sec:eda-discount-profit}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{02_discount_vs_profit.png}
+  \caption{Left: line-level profit vs.\ discount (3,000-row sample),
+  coloured by category — profit is scattered near zero at low discount and
+  swings sharply negative as discount grows. Right: mean profit by
+  discount band, crossing zero between the 10--20\% and 20--30\% bands and
+  falling steeply beyond 30\%.}
+  \label{fig:discount-profit}
+\end{figure}
+Quantitatively, the loss rate ($\Pr(\text{Profit}<0)$) is
+\textbf{exactly 0\%} for undiscounted lines and \textbf{96.8\%} for lines
+discounted 30\% or more, against an overall loss rate of 18.7\% across all
+9{,}994 lines — discount depth is close to a deterministic switch, not a
+mild risk factor. Because the relationship is a threshold
+effect rather than linear, the raw Pearson correlation between
+\texttt{Discount} and \texttt{Profit} (visible in
+\cref{fig:corr-heatmap}) understates its practical importance; this
+motivates using the categorical \texttt{discount\_bucket} feature (rather
+than relying on a linear term alone) in \cref{ch:features,ch:models}.
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.55\linewidth]{02_correlation.png}
+  \caption{Pearson correlation (\cref{eq:pearson}) among the core numeric
+  fields. \texttt{Sales}--\texttt{Profit}: $\rho\approx0.48$;
+  \texttt{Discount}--\texttt{Profit}: $\rho\approx-0.22$ (negative but,
+  per \cref{fig:discount-profit}, understating the non-linear effect);
+  \texttt{Quantity} is nearly uncorrelated with profit.}
+  \label{fig:corr-heatmap}
+\end{figure}
+
+\subsection{Seasonality}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{02_stl_decomposition.png}
+  \caption{STL decomposition (\cref{eq:stl-additive}, period 12) of monthly
+  sales: a clear upward trend across the four years and a recurring
+  within-year seasonal pattern that peaks late in the year, leaving a
+  comparatively small, structure-free remainder.}
+  \label{fig:stl}
+\end{figure}
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.95\linewidth]{02_seasonal_profiles.png}
+  \caption{Sales aggregated by month-of-year (left) and day-of-week
+  (right, 0 = Monday). November--December is by far the strongest period;
+  day-of-week shows only mild variation.}
+  \label{fig:seasonal-profiles}
+\end{figure}
+
+\subsection{Customers and products}
+The top-10 customers by sales (Table~\ref{tab:top-cust}) generate between
+\$12k and \$25k each, but profitability is uneven within that list —
+\emph{Sean Miller} is the single largest customer by revenue (\$25{,}043)
+yet is net loss-making ($-\$1{,}981$), while \emph{Tamara Chand} generates
+comparable revenue at a much healthier margin. The same pattern repeats at
+product level: the \emph{Cisco TelePresence System EX90} and two
+\emph{GBC} binding systems are top-10 by revenue but net loss-making,
+again tracing back to discount depth on high-ticket Technology and
+Furniture items.
+
+\begin{table}[H]
+  \centering
+  \caption{Top 5 customers by total sales.}
+  \label{tab:top-cust}
+  \begin{tabular}{@{}lrrr@{}}
+    \toprule
+    Customer & Sales (\$) & Profit (\$) & Orders \\
+    \midrule
+    Sean Miller     & 25{,}043 & $-$1{,}981 & 5 \\
+    Tamara Chand    & 19{,}052 & 8{,}981    & 5 \\
+    Raymond Buch    & 15{,}117 & 6{,}976    & 6 \\
+    Tom Ashbrook    & 14{,}596 & 4{,}704    & 4 \\
+    Adrian Barton   & 14{,}474 & 5{,}445    & 10 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\section{Interpretation}
+Three findings from this chapter shape every subsequent stage of the
+report. First, the data requires \emph{no} missing-value or duplicate
+handling, so all modelling error downstream is genuinely about the
+signal, not data-cleaning artefacts. Second, \textbf{discount depth, not
+category or region, is the primary lever on profitability} — a threshold
+effect around 30\% discount that is far stronger than any single-variable
+linear correlation suggests, which is why \texttt{discount\_bucket}
+(\cref{ch:features}) and the corresponding permutation-importance results
+(\cref{ch:models}) recur as the dominant signal throughout the rest of the
+report. Third, the pronounced trend and December seasonality in
+\cref{fig:stl} is exactly the structure a seasonal model must capture,
+and directly motivates the choice of Holt-Winters and SARIMA — both
+explicitly seasonal — over simpler alternatives in \cref{ch:forecasting}.

@@ -1,0 +1,65 @@
+\documentclass[11pt]{report}
+\input{preamble}
+
+\title{\textbf{End-to-End Machine Learning on Retail Transaction Data}\\[0.3em]
+       \large A Theory-and-Results Report on the Sample Superstore Dataset}
+\author{Debarshi Chakraborty}
+\date{\today}
+
+\begin{document}
+
+\begin{titlepage}
+  \centering
+  \vspace*{2cm}
+  {\Huge\bfseries End-to-End Machine Learning on Retail Transaction Data\par}
+  \vspace{0.6cm}
+  {\Large A Theory-and-Results Report on the Sample Superstore Dataset\par}
+  \vspace{2cm}
+  {\large Debarshi Chakraborty\par}
+  \vspace{0.3cm}
+  {\large \today\par}
+  \vfill
+  {\large
+    Companion codebase: \texttt{EY Training/ml\_superstore/}\\
+    Data: \texttt{EY Training/data/Sample - Superstore.csv} (9{,}994 order lines, 2014--2017, USA)
+  \par}
+  \vspace{1cm}
+\end{titlepage}
+
+\pagenumbering{roman}
+\begin{abstract}
+\noindent
+This report documents an end-to-end machine learning study built on the
+Sample Superstore retail dataset. It follows the same five stages as the
+accompanying Jupyter notebooks and source package
+(\texttt{EY Training/ml\_superstore/}): data ingestion and quality
+assessment, exploratory data analysis, feature engineering, time-series
+forecasting of monthly sales, and supervised learning for line-level profit
+prediction and loss detection. Unlike the notebooks, whose purpose is
+interactive exploration, this report is written to stand alone: every
+technique used is first introduced from first principles --- the statistical
+or algorithmic theory it rests on --- and only then applied to the data,
+with the resulting figures, tables and their business interpretation
+presented immediately afterwards. The headline findings are that (i) order
+discounting beyond roughly 30\% is the dominant driver of loss-making order
+lines, far outweighing category, region or shipping mode; (ii) an additive
+Holt--Winters exponential smoothing model forecasts monthly sales with an
+out-of-sample MAPE of approximately 23\%, competitive with a seasonal
+ARIMA model and clearly better than a seasonal-naive baseline; and (iii) a
+random-forest classifier trained on leakage-safe features identifies
+loss-making order lines with a PR-AUC of 0.96 on a strictly future
+(2017) hold-out year, giving a concrete, auditable basis for a discount
+governance policy.
+\end{abstract}
+
+\tableofcontents
+\listoffigures
+\listoftables
+
+\clearpage
+\pagenumbering{arabic}
+
+\input{chapters/01_introduction}
+\input{chapters/02_data_eda}
+
+\end{document}
