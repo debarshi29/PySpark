@@ -1,0 +1,2 @@
+# LaTeX intermediates are regenerable; only the top-level main.pdf is tracked.
+build/
