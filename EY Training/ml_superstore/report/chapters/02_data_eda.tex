@@ -131,7 +131,7 @@ sub-category. \textbf{Tables} lose \$17{,}725 overall despite \$207k of
 sales, and \textbf{Bookcases} lose \$3{,}473 — both at average discounts
 above 21\%, well above the store-wide mean. \textbf{Supplies} is also
 marginally loss-making. Every other sub-category is net profitable, led by
-Copiers (43\% margin) and Phones (\$330k sales, 13\% margin).
+Copiers (37\% margin) and Phones (\$330k sales, 13\% margin).
 
 \begin{table}[H]
   \centering
@@ -180,9 +180,11 @@ Copiers (43\% margin) and Phones (\$330k sales, 13\% margin).
   falling steeply beyond 30\%.}
   \label{fig:discount-profit}
 \end{figure}
-Quantitatively, the loss rate ($\Pr(\text{Profit}<0)$) is \textbf{3\%} for
-undiscounted lines and \textbf{over 50\%} for lines discounted 30\% or
-more — an order-of-magnitude jump. Because the relationship is a threshold
+Quantitatively, the loss rate ($\Pr(\text{Profit}<0)$) is
+\textbf{exactly 0\%} for undiscounted lines and \textbf{96.8\%} for lines
+discounted 30\% or more, against an overall loss rate of 18.7\% across all
+9{,}994 lines — discount depth is close to a deterministic switch, not a
+mild risk factor. Because the relationship is a threshold
 effect rather than linear, the raw Pearson correlation between
 \texttt{Discount} and \texttt{Profit} (visible in
 \cref{fig:corr-heatmap}) understates its practical importance; this
