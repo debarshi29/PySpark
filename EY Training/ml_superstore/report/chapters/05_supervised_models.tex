@@ -118,7 +118,7 @@ imbalance, ROC-AUC can look deceptively high because the false-positive
 \textbf{precision-recall curve} and its area (\textbf{PR-AUC}) are more
 informative here because precision directly reflects how many of the
 model's loss-flags are real losses, which is what a business decision
-(e.g.\ "should we renegotiate this order") actually needs. \textbf{Model
+(e.g.\ ``should we renegotiate this order'') actually needs. \textbf{Model
 calibration} additionally asks whether $\hat p$ is a trustworthy
 probability, not just a good ranking score: a perfectly calibrated model
 has $\Pr(y=1 \mid \hat p = q) = q$ for every $q$, visualised by binning
@@ -276,7 +276,7 @@ Translating the classifier into dollar terms on the 2017 test set:
 realised profit was \$93{,}439; of the total loss on loss-making lines,
 flagged lines captured \$50{,}138 (a \textbf{93.1\% catch rate} by
 dollar value) against \$3{,}699 missed, at the cost of putting
-\$1{,}358 of genuinely profitable business "at risk" from unnecessary
+\$1{,}358 of genuinely profitable business ``at risk'' from unnecessary
 renegotiation (false positives) — a roughly 37:1 ratio of dollars
 correctly caught to dollars put at risk.
 
