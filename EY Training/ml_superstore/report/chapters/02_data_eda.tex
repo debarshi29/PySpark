@@ -125,7 +125,7 @@ always non-negative, i.e. no order ships before it is placed.
 \end{figure}
 
 \subsection{Profit by product hierarchy}
-Table~\ref{tab:subcat-profit} (full detail in
+\Cref{tab:subcat-profit} (full detail in
 \texttt{outputs/tables/02\_by\_subcategory.csv}) aggregates profit by
 sub-category. \textbf{Tables} lose \$17{,}725 overall despite \$207k of
 sales, and \textbf{Bookcases} lose \$3{,}473 — both at average discounts
@@ -222,7 +222,7 @@ than relying on a linear term alone) in \cref{ch:features,ch:models}.
 \end{figure}
 
 \subsection{Customers and products}
-The top-10 customers by sales (Table~\ref{tab:top-cust}) generate between
+The top-10 customers by sales (\cref{tab:top-cust}) generate between
 \$12k and \$25k each, but profitability is uneven within that list —
 \emph{Sean Miller} is the single largest customer by revenue (\$25{,}043)
 yet is net loss-making ($-\$1{,}981$), while \emph{Tamara Chand} generates
@@ -261,5 +261,5 @@ linear correlation suggests, which is why \texttt{discount\_bucket}
 (\cref{ch:models}) recur as the dominant signal throughout the rest of the
 report. Third, the pronounced trend and December seasonality in
 \cref{fig:stl} is exactly the structure a seasonal model must capture,
-and directly motivates the choice of Holt-Winters and SARIMA — both
+and directly motivates the choice of Holt--Winters and SARIMA — both
 explicitly seasonal — over simpler alternatives in \cref{ch:forecasting}.

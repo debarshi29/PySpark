@@ -29,14 +29,14 @@ principles, followed by a \textbf{Method} section describing how it was
 applied to this dataset, then \textbf{Results} with the produced figures
 and tables, and finally an \textbf{Interpretation} section connecting the
 numbers back to a business reading. This mirrors, chapter for chapter, the
-five numbered notebooks in \texttt{EY\_Training/ml\_superstore/notebooks/}
+five numbered notebooks in \texttt{EY Training/ml\_superstore/notebooks/}
 and the reusable modules in \texttt{src/}.
 
 \section{Dataset}
 The dataset contains $n = 9{,}994$ order lines spanning
 \SI{4}{years} (2014--01--03 to 2017--12--30), $793$ unique customers and
 $1{,}862$ unique products, organised into $5{,}009$ distinct orders across
-the United States. Table~\ref{tab:intro-schema} summarises the raw schema.
+the United States. \Cref{tab:intro-schema} summarises the raw schema.
 
 \begin{table}[H]
   \centering
@@ -65,7 +65,7 @@ the United States. Table~\ref{tab:intro-schema} summarises the raw schema.
 All analysis is implemented in Python 3.10 using \texttt{pandas},
 \texttt{numpy}, \texttt{scikit-learn}, \texttt{statsmodels},
 \texttt{matplotlib}/\texttt{seaborn}. Code lives in
-\texttt{EY\_Training/ml\_superstore/src/} as importable modules
+\texttt{EY Training/ml\_superstore/src/} as importable modules
 (\texttt{data\_loader}, \texttt{features}, \texttt{forecasting},
 \texttt{modeling}, \texttt{pipeline}), exercised interactively by six
 Jupyter notebooks and, for one-shot reproduction, by
