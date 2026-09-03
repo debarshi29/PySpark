@@ -57,9 +57,12 @@ distance. The standard fix is to embed the period on the unit circle,
   \label{eq:cyclical}
 \end{equation}
 so that the Euclidean distance between two months' encodings,
-$\sqrt{(m_{\sin}-m'_{\sin})^2+(m_{\cos}-m'_{\cos})^2} =
-2\left|\sin\frac{\pi(m-m')}{12}\right|$, is a monotone function of their
-true circular distance and wraps correctly around the year boundary.
+\begin{equation*}
+  \sqrt{(m_{\sin}-m'_{\sin})^2+(m_{\cos}-m'_{\cos})^2}
+    = 2\left|\sin\frac{\pi(m-m')}{12}\right|,
+\end{equation*}
+is a monotone function of their true circular distance and wraps
+correctly around the year boundary.
 Tree ensembles (used for the best-performing models in
 \cref{ch:models,ch:forecasting}) do not strictly require this — they can
 split $m$ arbitrarily and effectively rediscover adjacency — but linear
