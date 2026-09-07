@@ -20,11 +20,16 @@
 \usepackage{float}
 \usepackage{siunitx}
 \usepackage[capitalise]{cleveref}
+\usepackage{microtype}
 
 \graphicspath{{../outputs/figures/}}
 
 \setlength{\parskip}{0.4em}
 \setlength{\parindent}{1.2em}
+
+% Absorb the small overfull lines caused by unbreakable \texttt{} paths
+% and inline math rather than letting them run into the margin.
+\setlength{\emergencystretch}{3em}
 
 \pagestyle{fancy}
 \fancyhf{}
