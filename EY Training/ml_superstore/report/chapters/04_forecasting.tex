@@ -25,7 +25,7 @@ compactly as $\Delta^d y_t = (1-B)^d y_t$; a \emph{seasonal} difference of
 period $s$ is $\Delta_s y_t = (1-B^s) y_t = y_t - y_{t-s}$.
 
 \subsection{The augmented Dickey--Fuller test}
-The ADF test formalises "does this series need differencing" as a
+The ADF test formalises ``does this series need differencing'' as a
 hypothesis test on the regression
 \begin{equation}
   \Delta y_t = \alpha + \beta t + \gamma y_{t-1}
@@ -168,7 +168,7 @@ its Kalman-filter forecast variance.
   recurring within-year cycle.}
   \label{fig:fc-series}
 \end{figure}
-Table~\ref{tab:adf} reports the ADF test (\cref{eq:adf}) on the level
+\Cref{tab:adf} reports the ADF test (\cref{eq:adf}) on the level
 series, its first difference, and its seasonal (lag-12) difference.
 \begin{table}[H]
   \centering
@@ -259,7 +259,7 @@ within about 6\% of each other and both clearly beat the naive baseline
 and the lag-regressor. This is a useful illustration of exactly the
 risk the theory section warns about: the single hold-out split
 (\cref{tab:holdout}) and the 8-fold backtest (\cref{tab:backtest})
-disagree on which of the top two models is "best", and the backtest,
+disagree on which of the top two models is ``best'', and the backtest,
 having 8 origins rather than 1, is the more trustworthy estimate of
 typical future accuracy.
 
@@ -278,7 +278,7 @@ point forecast} and \textbf{SARIMA for an 80\% confidence band}.
 \end{figure}
 The next 12 months are projected at \textbf{\$914{,}903}, against
 \$733{,}215 realised in the last full year (2017) — a projected
-\textbf{+24.8\%} year-on-year. Table~\ref{tab:cat-forecast} breaks this
+\textbf{+24.8\%} year-on-year. \Cref{tab:cat-forecast} breaks this
 down by product category (each fit with its own Holt--Winters model on
 that category's monthly series).
 \begin{table}[H]
@@ -318,7 +318,7 @@ explicit estimation, which is exactly what both Holt--Winters'
 seasonal state $s_t$ and SARIMA's $(P,D,Q)_{12}$ terms provide, and is
 why a naive linear-trend-only model is not attempted. Second, the
 disagreement between the single hold-out split and the 8-fold rolling
-backtest on which of Holt--Winters/SARIMA is "better" is not noise to be
+backtest on which of Holt--Winters/SARIMA is ``better'' is not noise to be
 explained away — it is the expected behaviour of a short series with
 few independent forecast origins, and is the reason this report reports
 \emph{both} evaluations rather than picking whichever looks best. Third,

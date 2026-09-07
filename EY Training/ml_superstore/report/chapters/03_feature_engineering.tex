@@ -23,7 +23,7 @@ explicitly:
         plots (\cref{ch:eda}) and \emph{never} included in the supervised
         feature matrix $\mathbf{X}$.
   \item \textbf{Temporal leakage in customer aggregates}: a naive
-        "customer's total historical sales" feature computed with a
+        ``customer's total historical sales'' feature computed with a
         normal \texttt{groupby(...).sum()} would, for order $i$, include
         sales from orders placed \emph{after} $i$ — information a
         real-time system could not have. We instead compute, for
@@ -156,7 +156,7 @@ transaction sees any of their own future purchase history.
 \end{figure}
 
 \subsection{Discount buckets}
-Table~\ref{tab:discount-bucket} operationalises the threshold effect
+\Cref{tab:discount-bucket} operationalises the threshold effect
 found in \cref{ch:eda}: mean profit and loss rate degrade monotonically
 across buckets, flipping sign between \emph{mid} and \emph{high}, and the
 \emph{extreme} bucket (discount $\geq 50\%$) is loss-making on
